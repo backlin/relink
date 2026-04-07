@@ -1,0 +1,9 @@
+{
+	"id": "mergelink",
+	"name": "MergeLink",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Merge notes while preserving backlinks as aliased wikilinks ([[target|original]]).",
+	"author": "Christofer Backlin",
+	"isDesktopOnly": false
+}
