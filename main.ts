@@ -120,6 +120,12 @@ export default class MergeLinkPlugin extends Plugin {
 			name: "Merge note into another (preserve backlinks)",
 			callback: () => this.runMerge(),
 		});
+
+		this.addCommand({
+			id: "replace-wikilinks-with-urls",
+			name: "Copy with Wiki-links replaced by target URLs",
+			callback: () => this.runReplaceWikilinksWithUrls(),
+		});
 	}
 
 	async runMerge(): Promise<void> {
@@ -261,4 +267,87 @@ export default class MergeLinkPlugin extends Plugin {
 		// --- Delete the source note ---
 		await vault.trash(source, false); // moves to Obsidian trash (.trash folder)
 	}
+
+	async runReplaceWikilinksWithUrls(): Promise<void> {
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			new Notice("No active file.");
+			return;
+		}
+
+		const vault = this.app.vault;
+		const metadataCache = this.app.metadataCache;
+		const raw = await vault.read(activeFile);
+		const content = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+
+		// Matches [[linkpath]], [[linkpath|alias]], [[linkpath#heading]], [[linkpath#heading|alias]]
+		// Group 1: linkpath, Group 2: #heading (optional), Group 3: alias (optional)
+		const wikilinkPattern = /\[\[([^\]|#]+)(#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
+
+		const updated = content.replace(wikilinkPattern, (
+			_match,
+			linkpath: string,
+			_heading: string | undefined,
+			alias: string | undefined
+		) => {
+			const displayText = alias?.trim() || linkpath.trim();
+			const targetFile = metadataCache.getFirstLinkpathDest(linkpath.trim(), activeFile.path);
+			if (!targetFile) return displayText;
+
+			const url = metadataCache.getFileCache(targetFile)?.frontmatter?.url;
+			return url ? `[${displayText}](${url})` : displayText;
+		});
+
+		const html = markdownToHtml(updated);
+		await navigator.clipboard.write([
+			new ClipboardItem({
+				"text/plain": new Blob([updated], { type: "text/plain" }),
+				"text/html": new Blob([html], { type: "text/html" }),
+			}),
+		]);
+		new Notice("Copied to clipboard with wikilinks replaced.");
+	}
+}
+
+/**
+ * Convert a markdown string to an HTML string suitable for rich-text pasting.
+ * Only handles the subset produced by runReplaceWikilinksWithUrls:
+ *   - [text](url) → <a href="url">text</a>
+ *   - blank lines   → paragraph breaks
+ *   - single newlines → <br>
+ */
+function markdownToHtml(markdown: string): string {
+	const paragraphs = markdown.split(/\n{2,}/);
+	const htmlParagraphs = paragraphs.map((para) => {
+		// Escape HTML entities in the raw text first, then re-introduce tags.
+		// We process inline runs so that link text/URLs are escaped before wrapping.
+		const escaped = para
+			.split(/(\[[^\]]*\]\([^)]*\))/) // split on markdown links
+			.map((part, i) => {
+				if (i % 2 === 1) {
+					// This part is a markdown link: [text](url)
+					const m = part.match(/^\[([^\]]*)\]\(([^)]*)\)$/);
+					if (m) {
+						const text = escapeHtml(m[1]);
+						const href = escapeHtml(m[2]);
+						return `<a href="${href}">${text}</a>`;
+					}
+				}
+				return escapeHtml(part);
+			})
+			.join("");
+
+		// Single newlines within a paragraph become <br>
+		return `<p>${escaped.replace(/\n/g, "<br>")}</p>`;
+	});
+
+	return `<html><body>${htmlParagraphs.join("")}</body></html>`;
+}
+
+function escapeHtml(s: string): string {
+	return s
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
 }
