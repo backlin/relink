@@ -106,6 +106,65 @@ function confirm(app: App, message: string): Promise<boolean> {
 	});
 }
 
+class PromptModal extends Modal {
+	private resolve: (value: string | null) => void;
+	private title: string;
+	private placeholder: string;
+	private initialValue: string;
+
+	constructor(app: App, title: string, placeholder: string, initialValue: string, resolve: (value: string | null) => void) {
+		super(app);
+		this.title = title;
+		this.placeholder = placeholder;
+		this.initialValue = initialValue;
+		this.resolve = resolve;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.createEl("h3", { text: this.title });
+
+		const input = contentEl.createEl("input", {
+			type: "text",
+			value: this.initialValue,
+			placeholder: this.placeholder,
+			cls: "mergelink-rename-input",
+		});
+		input.style.width = "100%";
+
+		const btnContainer = contentEl.createDiv({ cls: "modal-button-container" });
+		btnContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
+			this.resolve(null);
+			this.close();
+		});
+		const okBtn = btnContainer.createEl("button", { text: "Rename", cls: "mod-cta" });
+		okBtn.addEventListener("click", () => {
+			this.resolve(input.value.trim() || null);
+			this.close();
+		});
+
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") { this.resolve(input.value.trim() || null); this.close(); }
+			if (e.key === "Escape") { this.resolve(null); this.close(); }
+		});
+
+		setTimeout(() => { input.select(); }, 50);
+	}
+
+	onClose(): void {
+		this.resolve(null);
+	}
+}
+
+function promptText(app: App, title: string, placeholder: string, initialValue: string): Promise<string | null> {
+	return new Promise((resolve) => {
+		let resolved = false;
+		new PromptModal(app, title, placeholder, initialValue, (v) => {
+			if (!resolved) { resolved = true; resolve(v); }
+		}).open();
+	});
+}
+
 /**
  * Escape a string for use in a RegExp.
  */
@@ -115,6 +174,12 @@ function escapeRegExp(s: string): string {
 
 export default class MergeLinkPlugin extends Plugin {
 	async onload(): Promise<void> {
+		this.addCommand({
+			id: "rename-preserve-backlinks",
+			name: "Rename note (preserve backlink text)",
+			callback: () => this.runRenamePreserve(),
+		});
+
 		this.addCommand({
 			id: "merge-note-into",
 			name: "Merge note into another (preserve backlinks)",
@@ -126,6 +191,56 @@ export default class MergeLinkPlugin extends Plugin {
 			name: "Copy with Wiki-links replaced by target URLs",
 			callback: () => this.runReplaceWikilinksWithUrls(),
 		});
+	}
+
+	async runRenamePreserve(): Promise<void> {
+		const file = this.app.workspace.getActiveFile();
+		if (!file) {
+			new Notice("No active file.");
+			return;
+		}
+
+		const newBasename = await promptText(this.app, "Rename note", "New name", file.basename);
+		if (!newBasename || newBasename === file.basename) return;
+
+		const oldBasename = file.basename;
+		const oldPathNoExt = file.path.slice(0, -3);
+		const newPath = file.path.replace(/[^/]+\.md$/, `${newBasename}.md`);
+		const newRef = newPath.slice(0, -3);
+
+		try {
+			await this.app.vault.rename(file, newPath);
+
+			const oldBasenameEsc = escapeRegExp(oldBasename);
+			const oldPathNoExtEsc = escapeRegExp(oldPathNoExt);
+
+			const pattern = new RegExp(
+				`\\[\\[(?:${oldPathNoExtEsc}|${oldBasenameEsc})(#[^\\]|]*?)?(?:\\|([^\\]]*?))?\\]\\]`,
+				"g"
+			);
+
+			const allFiles = this.app.vault.getMarkdownFiles();
+			for (const f of allFiles) {
+				const content = await this.app.vault.read(f);
+				const updated = content.replace(
+					pattern,
+					(_match, heading: string | undefined, alias: string | undefined) => {
+						const h = heading ?? "";
+						const headingText = heading ? heading.slice(1) : ""; // strip leading #
+						const displayText = alias ?? (headingText ? `${oldBasename} > ${headingText}` : oldBasename);
+						return `[[${newRef}${h}|${displayText}]]`;
+					}
+				);
+				if (updated !== content) {
+					await this.app.vault.modify(f, updated);
+				}
+			}
+
+			new Notice(`Renamed "${oldBasename}" to "${newBasename}".`);
+		} catch (e) {
+			console.error("MergeLink rename error:", e);
+			new Notice(`MergeLink error: ${e}`);
+		}
 	}
 
 	async runMerge(): Promise<void> {
