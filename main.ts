@@ -128,7 +128,7 @@ class PromptModal extends Modal {
 			type: "text",
 			value: this.initialValue,
 			placeholder: this.placeholder,
-			cls: "mergelink-rename-input",
+			cls: "relink-rename-input",
 		});
 		input.style.width = "100%";
 
@@ -172,7 +172,7 @@ function escapeRegExp(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export default class MergeLinkPlugin extends Plugin {
+export default class RelinkPlugin extends Plugin {
 	async onload(): Promise<void> {
 		this.addCommand({
 			id: "rename-preserve-backlinks",
@@ -238,8 +238,8 @@ export default class MergeLinkPlugin extends Plugin {
 
 			new Notice(`Renamed "${oldBasename}" to "${newBasename}".`);
 		} catch (e) {
-			console.error("MergeLink rename error:", e);
-			new Notice(`MergeLink error: ${e}`);
+			console.error("Relink rename error:", e);
+			new Notice(`Relink error: ${e}`);
 		}
 	}
 
@@ -291,8 +291,8 @@ export default class MergeLinkPlugin extends Plugin {
 
 			new Notice(`Merged "${sourceName}" into "${targetName}".`);
 		} catch (e) {
-			console.error("MergeLink error:", e);
-			new Notice(`MergeLink error: ${e}`);
+			console.error("Relink error:", e);
+			new Notice(`Relink error: ${e}`);
 		}
 	}
 

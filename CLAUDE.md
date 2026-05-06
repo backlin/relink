@@ -1,4 +1,4 @@
-# MergeLink
+# Relink
 Obsidian plugin for managing link text:
 
 Features:

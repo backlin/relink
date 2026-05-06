@@ -1,4 +1,4 @@
-# MergeLink
+# Relink
 
 Obsidian plugin that merges one note into another while preserving backlinks as aliased wikilinks.
 
@@ -28,8 +28,8 @@ The active note is automatically used as the source. After merging, the source t
 ### Manual
 
 1. Build the plugin (see below) or grab `main.js` and `manifest.json` from a release
-2. Copy `main.js` and `manifest.json` into your vault at `.obsidian/plugins/mergelink/`
-3. Enable **MergeLink** in Settings > Community plugins
+2. Copy `main.js` and `manifest.json` into your vault at `.obsidian/plugins/relink/`
+3. Enable **Relink** in Settings > Community plugins
 
 ## Building
 

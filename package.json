@@ -1,5 +1,5 @@
 {
-	"name": "mergelink",
+	"name": "relink",
 	"version": "1.0.0",
 	"description": "Merge notes while preserving backlinks as aliased wikilinks.",
 	"scripts": {

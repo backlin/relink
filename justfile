@@ -16,8 +16,8 @@ install:
 
 # Install plugin into an Obsidian vault (pass vault path)
 install-plugin vault=(env('HOME') / "Vaults/Memory"): build
-    mkdir -p "{{ vault }}/.obsidian/plugins/mergelink"
-    cp dist/main.js manifest.json "{{ vault }}/.obsidian/plugins/mergelink/"
+    mkdir -p "{{ vault }}/.obsidian/plugins/relink"
+    cp dist/main.js manifest.json "{{ vault }}/.obsidian/plugins/relink/"
 
 # Remove build artifacts
 clean:
